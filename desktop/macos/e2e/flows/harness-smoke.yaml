@@ -18,6 +18,7 @@ covers:
   - desktop/macos/Desktop/Sources/AuthSessionCoordinator.swift
   - desktop/macos/Desktop/Sources/Auth/SessionRecoveryView.swift
   - desktop/macos/Desktop/Sources/Auth/AuthStorageCanary.swift
+  - desktop/macos/Desktop/Sources/Auth/DesktopDeveloperSecretStore.swift
   - desktop/macos/Desktop/Sources/DesktopKeychainStore.swift
   - desktop/macos/Desktop/Sources/Logger.swift
   - desktop/macos/Desktop/Sources/Observability/SentryBeforeSendPolicy.swift
@@ -35,10 +36,6 @@ covers:
   - desktop/macos/Desktop/Sources/OmiSupport/DesktopDevRuntimeManifest.swift
   - desktop/macos/Desktop/Sources/OmiSupport/DesktopLocalProfile.swift
   - desktop/macos/Desktop/Sources/ViewModelContainer.swift
-  - desktop/macos/Desktop/Sources/Onboarding/OnboardingChatView.swift
-  - desktop/macos/Desktop/Sources/Onboarding/OnboardingFloatingBarDemoView.swift
-  - desktop/macos/Desktop/Sources/Onboarding/OnboardingVoiceDemoView.swift
-  - desktop/macos/Desktop/Sources/Onboarding/OnboardingVoiceShortcutStepView.swift
   - desktop/macos/Desktop/Sources/Telemetry/SentryHeartbeatTelemetry.swift
   - desktop/macos/Desktop/Sources/ViewExporter.swift
   - desktop/macos/Desktop/Sources/Generated/OmiApi.generated.swift
@@ -63,7 +60,7 @@ steps:
       target: dashboard
       activateApp: false
     wait:
-      state.selectedTabIndex: 0
+      state.chatFirstRoute: chat
 
   - id: S2
     name: Capture Dashboard Visual
@@ -73,7 +70,7 @@ steps:
   - id: S3
     name: Assert Dashboard State
     state.expect:
-      state.selectedTabIndex: 0
+      state.chatFirstRoute: chat
 
   - id: S4
     name: Navigate to Memories
@@ -81,7 +78,7 @@ steps:
       target: memories
       activateApp: false
     wait:
-      state.selectedTabIndex: 3
+      state.chatFirstRoute: memories
 
   - id: S5
     name: Refresh Data

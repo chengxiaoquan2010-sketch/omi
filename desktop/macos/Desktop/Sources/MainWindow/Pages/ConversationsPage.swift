@@ -91,6 +91,24 @@ struct ConversationsPage: View {
   // Full-screen live transcript overlay
   @State private var isLiveTranscriptExpanded: Bool = false
 
+  /// Whether a refreshed list row should replace the open detail's row value.
+  ///
+  /// Every list publish lands here, including background refreshes that
+  /// replaced the row struct without changing anything the detail renders.
+  /// Re-assigning unconditionally re-inits the detail and — whenever the row's
+  /// `updatedAt` moved — restarted its load task mid-read, dropping the loaded
+  /// summary and re-laying-out the seed row underneath the reader
+  /// (FC-selection-overlay-layout-loop class). The detail request identity is
+  /// the single definition of "the detail must see this": replace only when it
+  /// moved.
+  static func shouldReplaceSelectedConversation(
+    _ current: ServerConversation,
+    with refreshed: ServerConversation
+  ) -> Bool {
+    ConversationDetailRequestToken(conversation: refreshed)
+      != ConversationDetailRequestToken(conversation: current)
+  }
+
   var body: some View {
     pageSurface
       .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -152,6 +170,7 @@ struct ConversationsPage: View {
         guard let selectedConversation,
           let refreshed = conversations.first(where: { $0.id == selectedConversation.id })
         else { return }
+        guard Self.shouldReplaceSelectedConversation(selectedConversation, with: refreshed) else { return }
         self.selectedConversation = refreshed
       }
       .dismissableSheet(isPresented: $showCreateFolderSheet) {
@@ -181,7 +200,8 @@ struct ConversationsPage: View {
           QuerySearchBar(
             text: $searchQuery,
             accessibilityID: "conversations-search-field",
-            placeholder: "Search conversations…"
+            placeholder: "Search conversations",
+            searchSurface: .conversations
           )
           .onChange(of: searchQuery) { _, newValue in
             if !newValue.isEmpty { selectedConversation = nil }
@@ -326,10 +346,22 @@ struct ConversationsPage: View {
         .padding(.horizontal, OmiSpacing.xxl)
         .padding(.top, OmiSpacing.md)
         .padding(.bottom, OmiSpacing.md)
+        .transition(.opacity)
+      } else if appState.isFinalizingCapture {
+        // The Live card's slot stays occupied while the capture becomes a
+        // row, so the meeting lands in place instead of vanishing and
+        // reappearing further down.
+        ConversationsSavingCaptureCard()
+          .padding(.horizontal, OmiSpacing.xxl)
+          .padding(.top, OmiSpacing.md)
+          .padding(.bottom, OmiSpacing.md)
+          .transition(.opacity)
       }
 
       conversationListSection
     }
+    .omiAnimation(.easeInOut(duration: 0.25), value: appState.isLiveCapturing)
+    .omiAnimation(.easeInOut(duration: 0.25), value: appState.isFinalizingCapture)
 
     if embedded {
       content
@@ -439,7 +471,8 @@ struct ConversationsPage: View {
         OmiSearchField(
           placeholder: "Search conversations",
           text: $searchQuery,
-          isLoading: isSearching
+          isLoading: isSearching,
+          searchSurface: .conversations
         )
         .onChange(of: searchQuery) { _, newValue in submitSearch(newValue) }
         .padding(.horizontal, QueryShellLayout.panelPaddingHorizontal)
@@ -555,6 +588,11 @@ struct ConversationsPage: View {
           conversation: conversation,
           onTap: {
             AnalyticsManager.shared.memoryListItemClicked(conversationId: conversation.id)
+            SearchAnalytics.resultOpened(
+              surface: .conversations,
+              resultIndex: visibleSearchResults.firstIndex(where: { $0.id == conversation.id }),
+              searchIsActive: true
+            )
             selectedConversation = conversation
           },
           folders: appState.folders,
@@ -600,7 +638,6 @@ struct ConversationsPage: View {
     isSearching = true
     searchError = nil
     log("Search: Starting search for '\(query)'")
-    AnalyticsManager.shared.searchQueryEntered(query: query)
 
     Task {
       do {
@@ -608,6 +645,7 @@ struct ConversationsPage: View {
         log("Search: Found \(result.count) results")
         searchResults = result
         isSearching = false
+        SearchAnalytics.queryEntered(surface: .conversations, query: query, resultsCount: result.count)
       } catch is CancellationError {
         // A newer query owns the search UI now.
       } catch {
@@ -615,6 +653,7 @@ struct ConversationsPage: View {
         searchError = UserFacingErrorPresentation.message(for: error, while: .conversationSearch)
         searchResults = []
         isSearching = false
+        SearchAnalytics.queryEntered(surface: .conversations, query: query, resultsCount: 0)
       }
     }
   }

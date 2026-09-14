@@ -6,6 +6,8 @@ import SharedConversationInstallCta, {
 } from '@/src/components/memories/shared-conversation-install-cta';
 import envConfig from '@/src/constants/envConfig';
 import { DEFAULT_TITLE_MEMORY } from '@/src/constants/memory';
+import { markdownToPlainText } from '@/src/lib/markdown-to-plain-text.mjs';
+import { sharedApiUrl } from '@/src/lib/shared-api-url.mjs';
 import { ParamsTypes, SearchParamsTypes } from '@/src/types/params.types';
 import { Metadata, ResolvingMetadata } from 'next';
 import { headers } from 'next/headers';
@@ -26,7 +28,7 @@ export async function generateMetadata(
 
   try {
     const response = await fetch(
-      `${envConfig.API_URL}/v1/conversations/${params.id}/shared`,
+      sharedApiUrl(envConfig.API_URL, 'v1', 'conversations', params.id, 'shared'),
       {
         next: {
           revalidate: 60,
@@ -49,11 +51,14 @@ export async function generateMetadata(
     : memory?.structured?.title || DEFAULT_TITLE_MEMORY;
   const description = !memory
     ? 'This shared conversation is private or no longer available. Open Omi to capture your own.'
-    : memory?.structured?.overview ||
+    : markdownToPlainText(memory?.structured?.overview) ||
       'A conversation shared from Omi — open it in the app.';
 
   const ogUrl = prevData.metadataBase
-    ? new URL(`/conversations/${params.id}`, prevData.metadataBase).toString()
+    ? new URL(
+        `/conversations/${encodeURIComponent(params.id)}`,
+        prevData.metadataBase,
+      ).toString()
     : `${envConfig.WEB_URL}/conversations/${params.id}`;
 
   return {
